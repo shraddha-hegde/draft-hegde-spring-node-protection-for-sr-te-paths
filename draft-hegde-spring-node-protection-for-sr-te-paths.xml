@@ -1,0 +1,511 @@
+<?xml version="1.0"?>
+<!DOCTYPE rfc SYSTEM "rfc2629.dtd" [
+<!ENTITY RFC2119 PUBLIC "" "http://xml.resource.org/public/rfc/bibxml/reference.RFC.2119.xml">
+<!ENTITY RFC2328 PUBLIC "" "http://xml.resource.org/public/rfc/bibxml/reference.RFC.2328.xml">
+<!ENTITY RFC5340 PUBLIC "" "http://xml.resource.org/public/rfc/bibxml/reference.RFC.5340.xml">
+<!ENTITY RFC1195 PUBLIC "" "http://xml.resource.org/public/rfc/bibxml/reference.RFC.1195.xml">
+<!ENTITY RFC5286 PUBLIC "" "http://xml.resource.org/public/rfc/bibxml/reference.RFC.5286.xml">
+<!ENTITY RFC7490 PUBLIC "" "http://xml.resource.org/public/rfc/bibxml/reference.RFC.7490.xml">
+<!ENTITY RFC5331 PUBLIC "" "http://xml.resource.org/public/rfc/bibxml/reference.RFC.5331.xml">
+]>
+<?rfc toc="yes"?>
+<?rfc tocompact="yes"?>
+<?rfc tocdepth="3"?>
+<?rfc tocindent="yes"?>
+<?rfc symrefs="yes"?>
+<?rfc sortrefs="yes"?>
+<?rfc comments="yes"?>
+<?rfc inline="yes"?>
+<?rfc compact="yes"?>
+<?rfc subcompact="no"?>
+<rfc category="info" docName="draft-hegde-spring-node-protection-for-sr-te-paths-00" ipr="trust200902">
+<front>
+  <title abbrev="Node Protection for SR-TE Paths">Node Protection for SR-TE Paths</title>
+  <author initials="S." surname="Hegde" fullname="Shraddha Hegde">
+    <organization>Juniper Networks, Inc.</organization>
+    <address>
+      <postal>
+        <street>Exora Business Park</street>
+        <city>Bangalore</city>
+        <region>KA</region>
+        <code>560103</code>
+        <country>India</country>
+      </postal>
+      <email>shraddha@juniper.net</email>
+    </address>
+  </author>
+<author initials="C." surname="Bowers" fullname="Chris Bowers">
+    <organization>Juniper Networks, Inc.</organization>
+    <address>
+      <postal>
+        <street></street>
+        <city></city>
+        <region></region>
+        <code></code>
+        <country></country>
+      </postal>
+      <email>cbowers@juniper.net</email>
+    </address>
+  </author>
+
+  <date year="2016"/>
+  <area>Routing</area>
+  <workgroup>Routing area</workgroup>
+  <keyword>PLR</keyword>
+  <keyword>IGP</keyword>
+  <keyword>OSPF</keyword>
+  <keyword>IS-IS</keyword>
+  <keyword>SPRING</keyword>
+  <abstract>
+ <t>Segment routing supports the creation of explicit paths using 
+adjacency-sids, node-sids, and binding-sids. It is important to provide 
+fast reroute (FRR) mechanisms to respond to failures of links and nodes 
+in the Segment-Routed Traffic-Engineered(SR-TE) path. A point of local 
+repair (PLR) can provide FRR protection against the failure of a link in 
+an SR-TE path by examining only the first (top) label in the SR label 
+stack. In order to protect against the failure of a node, a PLR may need 
+to examine the second label in the stack as well in order to determine 
+SR-TE path beyond the failed node. This document specifies how a PLR can 
+use the first and second label in the label stack describing an SR-TE 
+path to provide protection against node failures. </t> 
+
+  </abstract>
+
+  <note title="Requirements Language">
+    <t>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+    "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+    document are to be interpreted as described in <xref
+    target="RFC2119">RFC 2119</xref>.</t>
+  </note>
+
+</front>
+
+<middle>
+<section title="Introduction" anchor='intro'>
+<t> It is possible for a routing device to completely go out of 
+service abruptly due to power failure, hardware failure or software 
+crashes. Node protection is an important property of the Fast Reroute 
+mechanism. It provides protection against a node failure by rerouting 
+traffic around the failed node. For example, the mechanisms described in 
+Loop Free Alternates <xref target="RFC5286"/> and Remote loop free 
+alternates <xref target="I-D.ietf-rtgwg-rlfa-node-protection"/> can be 
+used to provide node protection to ensure minimal traffic loss after 
+a node failure. The solutions to provide node protection in this draft use
+SPF based local protection mechanisms. </t> 
+
+<t><xref target="Problems_with_SR_TE"/> describes problems with SR-TE 
+paths and need for a specialized mechanism to provide node protection 
+for the SR-TE paths. <xref target="detailed-soln"/> describes the 
+solution applied to paths built using adjacency-sids, node-sids and 
+binding-sids. <xref target="border_node_protection"/> describes the 
+solution applied to egress node protection. </t> 
+
+</section>
+
+  <section anchor='Problems_with_SR_TE' title='Node Failures Along SR-TE Paths'>
+
+    <figure anchor="sample-network" title="Sample Network">
+      <artwork>
+    sid:1    sid:2     sid:3       sid:4      sid:5
+ 1000-2000   1000-2000 1000-2000   1000-2000  1000-2000
+   +----+ 10 +----+ 10 +----+  10   +----+ 10 +----+
+   | R1 |----| R2 |----| R3  |----- | R4  |-- | R5 |
+   +----+    +----+    +----+       +----+    +----+
+       \                  \          /
+        \ 10               \ 100    / 60
+         \                  \      /
+          \   +----+         +----+   
+           +--| R7 |---------| R8 |
+              +----+    30   +----+
+               /   sid:7       sid:8        Packet Header:
+              /    1000-2000   3000-4000    +------------+
+             / 10                           |   1008     |
+          +----+                            +------------+
+          | R6 |                            |   3005     |
+          +----+                            +------------+
+          sid:6
+          1000-2000
+      </artwork>
+    </figure>
+
+<t>The topology shown in <xref target="sample-network"/>. illustrates a 
+sample network topology with SPRING enabled on each node. The 
+SRGB and the segment index corresponding to each node is 
+described in the topology diagram. </t> 
+
+
+<section title='Node protection for node-sid explicit paths'>
+<t>Consider an explicit path from R1->R5 via R1->R7->R8->R4->R5. This 
+path can be built using R1->R8 and R8->R5 shortest paths. The label 
+stack contains two node-sids 1008 and 3005. The 1008 label would take 
+the packet to R8 and get popped. The next label in the stack 3005 would 
+take the packet to the destination R5. If the node R8 goes down, it is 
+not possible for R7 to perform FRR without examining the second label in 
+the incoming label stack (3005). R7 does not need to understand the 
+meaning of label 3005 in order to perform normal forwarding in the 
+absence of a failure. However, in order to support node protection, R7 
+will need to understand the meaning of label 3005 in order to determine 
+where the packet is headed after R8. 
+</t>
+
+<t> Anycast addresses are in general advertised by more than one node 
+and if per-prefix LFA calculation <xref target ="RFC5286"/> is used node 
+protecting paths can be found for the anycast sids. If a node protecting 
+path is available for the anycast sid then the context table lookup 
+mechanism would not be required. Otherwise, the anycast label has to be 
+popped and next label looked up to find where the packet should be 
+forwarded. </t> 
+
+</section>
+    
+<section title='Node-protection for adj-sid explicit paths'>
+    
+<figure anchor="Explicit_path_adj_sid" title="Explicit path using adjacency sids">
+<artwork>
+   R1-R2:    R2-R3:    R3-R8:       R4-R5:
+   1024      1034      1044         1064
+   +----+ 10 +----+ 10 +----+  10   +----+ 10    +----+
+   | R1 |----| R2 |----| R3 |-------| R4 |------| R5 |
+   +----+    +----+    +----+       +----+       +----+
+       \                  \          /
+        \ 10               \ 100    / 60
+         \                  \      /
+          \   +----+         +----+ R8-R5:   Label stack
+           +--| R7 |---------| R8 | 1054     for explicit
+              +----+    30   +----+ R8-R7:   path from 
+               /                     1074    R1->R5:
+              /                             +------------+
+             / 10                           |   1034     |
+          +----+                            +------------+
+          | R6 |                            |   1044     |
+          +----+                            +------------+
+                                            |   1054     |              
+                                            +------------+
+                                            |   1064     |
+                                            +------------+
+      </artwork>
+    </figure>
+ <t>Consider an explicit path from R1->R5 via R1->R2->R3->R8->R4->R5. 
+This path can be built using adjacency sids, as shown in <xref 
+target='Explicit_path_adj_sid'/>. The diagram shows the adjacency sids 
+advertised by each node required to realize this path, as well as the 
+complete label stack. When a packet leaving R1 with this label stack  
+reaches R3, the top of stack contains the label 1044 which will take the 
+packet to R8. The next-next-hop in the path is R4. To provide protection 
+for the failure of node R8, R3 would need to send the the packet to R4 
+without going through R8. However, the only way R3 can learn that the 
+packet needs to go to the R4 is to examine the next label in the stack, 
+label 1054. </t> 
+    
+</section>
+
+<section title='Node-protection of binding-sid explicit paths'>
+  <t> Binding sids (defined in SR architecture <xref 
+target='I-D.ietf-spring-segment-routing'/>) allow the SR-TE path to 
+be built using a hierarchy of sub-paths. The binding sid provides a 
+single label to represent a set of nodes and links. If the node 
+advertising the binding sid goes down, the traffic needs to be 
+protected. The label stack involving the binding-sid contains next label 
+in the stack which corresponds to the end point represented by the 
+binding-sid. The penultimate node of the binding-sid advertiser cannot 
+know the meaning of the next label in the stack. </t> 
+</section>
+</section>
+
+<section anchor='detailed-soln' 
+         title='Detailed Solution using Context Tables'>
+         
+<section anchor='context_tables' 
+         title='Building Context Tables'>
+<t><xref target='RFC5331'/> introduced the concept of
+Context Specific Label Spaces and there are various applications making use of this
+concept.A context label table on a router represents the Label Information 
+Base (LIB) from the point of view of a particular neighbor . Context 
+tables are built by constructing incoming label mappings advertised by 
+the neighbor and the actions corresponding to those labels. The labels 
+advertised by each node are local to the node and may not be unique
+across the segment routing domain. The context tables are separate tables 
+built on a per-neighbor basis on every node to ensure they represent 
+LIBs of a particular neighbor.</t> 
+
+<t> When a node learns the node-sid, SRGB, and adjacency-sids or binding-sids from a neighbor, 
+the label mapping is added to the context table corresponding to that 
+neighbor. The output actions for the label mapping are derived based 
+on the actions that the neighbor would perform on receipt of the label.
+</t>
+
+<t> The following section illustrates how the 
+context table is constructed to allow the PLR to provide node-protecting paths for the next-next hops 
+in the previous examples </t> 
+
+</section>
+
+<section anchor='context_tables_for_node_sids' 
+         title='Building node protecting paths for node-sids'>
+   
+<figure anchor="context_table_node_sid" title="Transit routing table and Context Table at R7">
+<artwork>    
+
+   R7's Transit Routing table
+   +=============+=================+ 
+   |in-label     | Out label       | 
+   +===========+=================+
+   | 1001        | Fwd to R1,      |    
+   +=============+=================+
+   | 1002        | swap 1002, Fwd  | 
+   |             | to R1           |
+   +=============+=================+
+   | 1003        | swap 1003, Fwd  |
+   |             | to R1           |  
+   +=============+=================+
+   | 1004        | swap 1004,      | 
+   |             |  Fwd to R1      |  
+   +=============+=================+
+   | 1005,       | swap 1005,      | 
+   |             |  Fwd to R1      |  
+   +=============+=================+
+   | 1008,       | pop, fwd to r8  | 
+   |             | *pop,lookup     |
+   |             |   context.r8    |  
+   +=============+=================+
+    * - Indicates backup path.
+   
+   R7's Context Table for R8
+   +=============+=================+
+   |in-label     | Out label       | 
+   +=============+=================+
+   | 3001        | Fwd to R1,      |    
+   +=============+=================+
+   | 3002        | swap 1002, Fwd  | 
+   |             | to R1           |
+   +=============+=================+
+   | 3003        | swap 1003, Fwd  |
+   |             | to R1           |  
+   +=============+=================+
+   | 3004        | swap 1004,      | 
+   |             |  Fwd to R1      |  
+   +=============+=================+
+   | 3005,       | swap 1005,      | 
+   |             |  Fwd to R1      |  
+   +=============+=================+
+        
+        </artwork>
+      </figure>
+<t> The above <xref target='context_table_node_sid'/> shows the transit 
+routing table and the context table of neighbor R8 built at R7 for the 
+example network shown in <xref target='sample-network'/>. When the 
+adjacency with R8 comes up, R7 builds the context table for R8 and adds 
+the label mappings to the context table by adding the node-sid index of 
+all the nodes to the SRGB advertised by R8. The output 
+action is constructed by looking into the R7's SPF and backup SPF computations
+ for the next-nexthop. The backup SPF computations as defined in LFA <xref target='RFC5286'/>
+ are applicable here.
+The R7's SPF and backup SPF computations for the next-nexthop  may provide multiple loop 
+free primary or backup paths. A loop free path that does not include the failure node (R8 in this example) is chosen
+and downloaded to the context table.</t> 
+
+<t>R7's routing table entry for R8's sid i.e label 1008 will have a pop 
+and forward action and the backup path SHOULD have action pop and lookup 
+into the context table of R8. When the node R7 detects R8 goes down, R7's forwarding 
+plane does a local repair and points to the backup path. When a packet whose top label is 1008
+arrives at R7, the top label is popped, and the next label is looked up
+in the context table for R8. As shown in Figure 3, if the next label is
+3005, the packet will be directed to R5 along a path that avoids R8. </t> 
+
+<section anchor='context_tables_for_adj_sids' 
+         title='Building node protecting paths for adjacency-sids'>
+      
+      <figure anchor="context_table_at_R3" title="Context Table at R3">
+        <artwork> 
+    R3's Transit Routing table (partial)
+   +=============+=================+ 
+   |in-label     | Out label       | 
+   +=============+=================+
+   | 1044        | pop,Fwd to R8,  | 
+   |             |*pop, lookup     |
+   |             |context.r8       |   
+   +=============+=================+
+   | 1004        | pop, Fwd to R4  | 
+   |             | *push 3004,     |
+   |             |  fwd to R8      |
+   +=============+=================+
+  
+    * - Indicates backup path.
+   
+   R3's Context Table for R8 (partial)
+   +=============+=================+
+   |in-label     | Out label       | 
+   +=============+=================+
+   | 1054        | pop,Fwd to R4,  |    
+   +=============+=================+
+   | 1074        | swap 1007, Fwd  | 
+   |             | to R2           |
+   +=============+=================+
+     
+        </artwork>
+      </figure>
+<t> The processing for the packet is similar to mechanism explained for 
+node sids in section <xref target ='context_tables_for_node_sids'/>.</t> 
+
+ <t><xref target ='context_table_at_R3'/> shows the context table 
+ constructed at R3 corresponding to R8 
+for the sample network shown in <xref target = 
+'Explicit_path_adj_sid'/>.  Adjacency sids are attached to the link 
+advertisements in IGPs and the link advertisements contain the node 
+information of the remote end. When R3 learns adjacency sids from R8, 
+it builds context table for R8 which contains the adjacency labels 
+advertised by R8 and the output action is built by looking at R3's own 
+SPF and backup SPF computations for the remote end point of the link. Among the multiple 
+primary/backup paths to the remote end of the link, a loop free path 
+that does not pass through R8 is chosen. </t> 
+
+ </section>
+ </section>
+ 
+ <section anchor='binding_sids_node_protection' 
+         title='Node protection for binding sids'>
+             <figure anchor="Node_protection_binding_sid" title="Node Protection for Binding SID">
+      <artwork>
+    sid:1    sid:2     sid:3       sid:4      sid:5
+ 1000-2000   1000-2000 1000-2000   1000-2000  1000-2000 
+   R1-R2:    R2-R3:    R3-R8:      R4-R5:
+   1024      1034      1044        1064      
+       R4:2014 =========================
+   +----+ 10 +----+ 10 +----+  10   +----+ 10 +----+
+   | R1 |----| R2 |----| R3 |-------| R4  |-- | R5 |
+   +----+    +----+    +----+       +----+    +----+
+       \                  \          /
+        \ 10               \ 100    / 60
+         \                  \      /
+          \   +----+         +----+   
+           +--| R7 |---------| R8 | R8-R4:1054
+              +----+    30   +----+ R8-R7:1074
+               /   sid:7       sid:8        
+              /    1000-2000   3000-4000    
+             / 10                           
+          +----+                            
+          | R6 |                          Explicit path from R1->R5:
+          +----+                            +------------+
+          sid:6                             |   2014     |              
+          1000-2000                         +------------+
+                                            |   1064     |
+                                            +------------+
+      </artwork>
+    </figure>
+ <t>Figure <xref target = 'binding_sids_node_protection'/> describes a 
+sample network where R2 advertises a binding sid 2014 for the path 
+R2->R3->R4. This mechanism is very useful in compressing the 
+label stack depth as a sub-path can be represented using a single label. 
+The explicit path R1->R2->R3->R4->R5 can be represented by 2 label stack 
+as shown in above figure. If the node that advertises the binding-sid 
+goes down, protection mechanisms are needed for the binding sid that the 
+node advertised. A receiving node that programs a forwarding path for 
+the binding sid should find a node protecting path to the last node of 
+the path represented by the binding sid. In the above sample network, R1 
+programs a backup path for binding sid 2014 with the node protecting 
+R-LFA path to R4 which consists of two labels [1008, 1004]. When the 
+packet reached R4, it has the label 1064 in the label stack and can 
+recognize this label and forward to R5. The node protecting path could 
+be computed using various FRR technologies like LFA <xref 
+target='RFC5286'/>, Remote-LFA <xref target ='RFC7490'/> , 
+TI-LFA <xref target ='I-D.francois-rtgwg-segment-routing-ti-lfa'/> etc. 
+</t> 
+
+
+    </section>
+     <section anchor='border_node_protection' 
+         title='Node protection for edge nodes'>
+             <figure anchor="edge_node_protection" title="Node Protection for edge nodes">
+      <artwork>
+    sid:1    sid:2     sid:3       sid:4      sid:5
+ 1000-2000   1000-2000 1000-2000   1000-2000  1000-2000 
+   R2:1024    R3:1034   R8:1044     R5:1064      
+       R4:2014 =========================
+   +----+ 10 +----+ 10 +----+  10   +----+ 10 +----+
+   | PE1|----| R2 |----| R3 |-------| R4  |-- | PE2| context 1.1.1.1: sid 10
+   +----+    +----+    +----+       +----+    +----+\
+       \                  \          /               \+-----+
+        \ 10               \ 100    / 60             /| CE1 |
+         \                  \      /               /  +-----+
+          \   +----+         +----+ R4:1054 +-----+
+           +--| R7 |---------| R8 | --------| PE3 |context 1.1.1.1
+              +----+    30   +----+         +-----+sid 10
+               /   sid:7       sid:8          
+              /    1000-2000   3000-4000    
+             / 10                           
+          +----+                            
+          | R6 |
+          +----+                           
+          sid:6                                      
+          1000-2000                        
+                                           
+      </artwork>
+    </figure>
+         <t> The node protection mechanisms that are described in previous sections depend on the assumption 
+         that the label below the top label in the label stack are understood in the IGP domain.
+         If the edge node goes down, the label below the top label representing the edge node could
+         be BGP service label or labels representing other applications. Service mirroring use case is described in
+		 <xref target ='I-D.filsfils-spring-segment-routing-use-cases'/>
+		 The Customer edges are multi-homed 
+         to provider edges and one of the PE's acts in primary role and the other in protector role.
+         The two PEs advertise a context ip address for each customer site and attaches a prefix-sid to
+         the context. The protector PE advertises a binding sid with M bit set which implies mirroring
+		 capability for the context. Protector PE builds the context table
+         for the BGP service labels advertised by the primary PE for the same context. The BGP service 
+         is built using stack of labels with
+         context-sid at the bottom of the label stack.when the label ranges  advertised by the PE2 and the penultimate node,
+		 Penultimate node does not understand the bottom label which is advertised by the node PE2. 
+		 Any penultimate node of PE2  builds a context table
+		 for PE2 as explained in the section <xref target='context_tables'/>.
+         This context table contains the sid for the
+         context-id and output action is to pop the top label and replace with the binding sid that 
+         the protector PE advertised for the context 1.1.1.1. The binding sid directs the protector PE
+         to lookup the context table of Primary PE for the BGP service labels. The node protection mechanisms
+         described in this document also ensure the edge node protection when uniform label range 
+		 is not assigned across the entire IGP domain.</t>
+    </section>
+    </section>
+  <section title='Security Considerations' anchor='sec-con'>
+    <t>TBD</t>
+  </section>
+  <section anchor="IANA" title="IANA Considerations">
+    <t>    </t>
+
+  </section>
+  <section title='Acknowledgments'>
+    <t> </t>
+  </section>
+</middle>
+
+<back>
+  <references title='Normative References'>
+    &RFC5286;
+    &RFC7490;
+	&RFC5331;   
+   
+  </references>
+  <references title='Informative References'>
+    &RFC2328;
+    &RFC5340;
+	
+    <reference anchor="ISO10589">
+      <front>
+        <title>Intermediate system to Intermediate system intra-domain
+        routeing information exchange protocol for use in conjunction with
+        the protocol for providing the connectionless-mode Network Service
+        (ISO 8473), ISO/IEC 10589:2002, Second Edition.</title>
+        <author fullname="ISO &quot;International Organization for Standardization&quot;"/>
+        <date month="Nov" year="2002"/>
+      </front>
+    </reference>  
+    &RFC1195;
+    &RFC2119;
+    <?rfc include="reference.I-D.ietf-rtgwg-rlfa-node-protection"?>
+    <?rfc include="reference.I-D.ietf-spring-segment-routing"?>
+    <?rfc include="reference.I-D.francois-rtgwg-segment-routing-ti-lfa"?>
+	<?rfc include="reference.I-D.minto-rsvp-lsp-egress-fast-protection"?>	
+	<?rfc include="reference.I-D.filsfils-spring-segment-routing-use-cases"?>
+	
+  </references>
+</back>
+</rfc>
