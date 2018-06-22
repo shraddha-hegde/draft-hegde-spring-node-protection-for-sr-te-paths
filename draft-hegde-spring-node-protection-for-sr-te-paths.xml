@@ -18,7 +18,7 @@
 <?rfc inline="yes"?>
 <?rfc compact="yes"?>
 <?rfc subcompact="no"?>
-<rfc category="info" docName="draft-hegde-spring-node-protection-for-sr-te-paths-00" ipr="trust200902">
+<rfc category="info" docName="draft-hegde-spring-node-protection-for-sr-te-paths-01" ipr="trust200902">
 <front>
   <title abbrev="Node Protection for SR-TE Paths">Node Protection for SR-TE Paths</title>
   <author initials="S." surname="Hegde" fullname="Shraddha Hegde">
@@ -48,7 +48,7 @@
     </address>
   </author>
 
-  <date year="2016"/>
+  <date year="2017"/>
   <area>Routing</area>
   <workgroup>Routing area</workgroup>
   <keyword>PLR</keyword>
