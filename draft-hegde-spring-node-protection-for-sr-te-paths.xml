@@ -7,6 +7,7 @@
 <!ENTITY RFC5286 PUBLIC "" "http://xml.resource.org/public/rfc/bibxml/reference.RFC.5286.xml">
 <!ENTITY RFC7490 PUBLIC "" "http://xml.resource.org/public/rfc/bibxml/reference.RFC.7490.xml">
 <!ENTITY RFC5331 PUBLIC "" "http://xml.resource.org/public/rfc/bibxml/reference.RFC.5331.xml">
+<!ENTITY RFC8102 PUBLIC "" "http://xml.resource.org/public/rfc/bibxml/reference.RFC.8102.xml">
 ]>
 <?rfc toc="yes"?>
 <?rfc tocompact="yes"?>
@@ -18,7 +19,7 @@
 <?rfc inline="yes"?>
 <?rfc compact="yes"?>
 <?rfc subcompact="no"?>
-<rfc category="info" docName="draft-hegde-spring-node-protection-for-sr-te-paths-02" ipr="trust200902">
+<rfc category="info" docName="draft-hegde-spring-node-protection-for-sr-te-paths-03" ipr="trust200902">
 <front>
   <title abbrev="Node Protection for SR-TE Paths">Node Protection for SR-TE Paths</title>
   <author initials="S." surname="Hegde" fullname="Shraddha Hegde">
@@ -100,14 +101,15 @@ service abruptly due to power failure, hardware failure or software
 crashes. Node protection is an important property of the Fast Reroute 
 mechanism. It provides protection against a node failure by rerouting 
 traffic around the failed node. For example, the mechanisms described in 
-Loop Free Alternates <xref target="RFC5286"/> and Remote loop free 
-alternates <xref target="I-D.ietf-rtgwg-rlfa-node-protection"/> can be 
+Loop Free Alternates (<xref target="RFC5286"/>),  
+Remote Loop Free Alternates (<xref target="RFC8102"/>), and 
+<xref target ='I-D.bashandy-rtgwg-segment-routing-ti-lfa'/> can be
 used to provide node protection to ensure minimal traffic loss after 
 a node failure.  </t> 
 
 <t><xref target="Problems_with_SR_TE"/> describes problems with SR-TE 
-paths and need for a specialized mechanism to provide node protection 
-for the SR-TE paths. <xref target="detailed-soln"/> describes the 
+paths and the need for a specialized mechanism to provide node protection 
+for SR-TE paths. <xref target="detailed-soln"/> describes the 
 solution applied to paths built using adjacency-sids, node-sids and 
 binding-sids. <xref target="border_node_protection"/> describes the 
 solution applied to egress node protection. </t> 
@@ -291,7 +293,18 @@ know the meaning of the next label in the stack. </t>
 
 <section anchor='detailed-soln' 
          title='Detailed Solution using Context Tables'>
-         
+<t>This section provides a detailed description of how to 
+construct node-protecting backup paths for SR-TE paths using
+context tables.  The end result of this description is 
+externally visible forwarding behavior 
+that can be specified as a packet arriving at a PLR with
+a particular incoming label stack and leaving the PLR on a particular 
+outgoing interface with a particular outgoing label stack.  
+There may be other methods of arriving at the same externally visible 
+forwarding behavior.  It is not the intent of this document to
+exclude other methods, as long as the externally visible forwarding
+behavior is the same as produced by this method.</t> 
+	         
 <section anchor='context_tables' 
          title='Building Context Tables'>
 <t><xref target='RFC5331'/> introduced the concept of
@@ -305,17 +318,17 @@ across the segment routing domain. The context tables are separate tables
 built on a per-neighbor basis on every node to ensure they represent 
 LFIBs of a particular neighbor.</t> 
 
-<t> When a node requires to protect an SRTE path against the failure of a neighbor N, it MUST create a context table associated to N.
- This context table MUST be populated with the following segment routing forwarding entries:
+<t> When a PLR needs to protect an SR-TE path against the failure of a neighbor N, it creates a context table associated with N.
+ This context table is populated with the following segment routing forwarding entries:
  <list>
-<t>-	All the Prefix-SIDs of the network.
-        The programmed ILM MUST use the SRGB of N to compute the input label value. 
-        The NHLFE SHOULD be constructed by looking into all the nexthops for the prefix-SID and
+<t>-	All the Prefix-SIDs of the network which have N as the primary nexthop.
+        The programmed incoming label map uses the SRGB of N to compute the input label value. 
+        The NHLFE (Next Hop Label Forwarding Entry) is then constructed by looking into all the nexthops for the prefix-SID and
 		choosing a loop-free path as explained in <xref target = "sec_context_tables_for_node_sids"/></t>
 <t>-	All the Adjacency SIDs advertised by N.
-        The NHLFE SHOULD be constructed as explained in <xref target="sec_context_tables_for_adj_sids"/></t>
+        The NHLFE is constructed as explained in <xref target="sec_context_tables_for_adj_sids"/></t>
 <t>-	All the Binding SIDs advertised by N.
-        The NHLFE SHOULD be constructed as explained in <xref target="sec_binding_sids_node_protection"/></t>
+        The NHLFE is constructed as explained in <xref target="sec_binding_sids_node_protection"/></t>
 </list>
 
 </t>
@@ -585,7 +598,7 @@ service label 70099.
 
 <t>
 The service mirroring use case is described in
-<xref target ='I-D.filsfils-spring-segment-routing-use-cases'/>.
+<xref target='I-D.ietf-spring-segment-routing'/>.
 The customer edge (CE) routers are multi-homed 
 to provider edge (PE) routers,  and one of the PE's acts in a primary role and the other in protector role.
 The two PEs advertise a context ip address for each customer site and attaches a prefix-sid to
@@ -627,32 +640,14 @@ corresponding to PE5.</t>
 <back>
   <references title='Normative References'>
     &RFC5286;
-    &RFC7490;
 	&RFC5331;   
    
   </references>
-  <references title='Informative References'>
-    &RFC2328;
-    &RFC5340;
-	
-    <reference anchor="ISO10589">
-      <front>
-        <title>Intermediate system to Intermediate system intra-domain
-        routeing information exchange protocol for use in conjunction with
-        the protocol for providing the connectionless-mode Network Service
-        (ISO 8473), ISO/IEC 10589:2002, Second Edition.</title>
-        <author fullname="ISO &quot;International Organization for Standardization&quot;"/>
-        <date month="Nov" year="2002"/>
-      </front>
-    </reference>  
-    &RFC1195;
+  <references title='Informative References'>  
     &RFC2119;
-    <?rfc include="reference.I-D.ietf-rtgwg-rlfa-node-protection"?>
+	&RFC8102;
     <?rfc include="reference.I-D.ietf-spring-segment-routing"?>
-    <?rfc include="reference.I-D.francois-rtgwg-segment-routing-ti-lfa"?>
-	<?rfc include="reference.I-D.minto-rsvp-lsp-egress-fast-protection"?>	
-	<?rfc include="reference.I-D.filsfils-spring-segment-routing-use-cases"?>
-	
+	<?rfc include="reference.I-D.bashandy-rtgwg-segment-routing-ti-lfa"?>
   </references>
 </back>
 </rfc>
