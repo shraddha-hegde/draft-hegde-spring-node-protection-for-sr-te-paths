@@ -22,8 +22,9 @@
 <rfc category="info" docName="draft-hegde-spring-node-protection-for-sr-te-paths-03" ipr="trust200902">
 <front>
   <title abbrev="Node Protection for SR-TE Paths">Node Protection for SR-TE Paths</title>
+
   <author initials="S." surname="Hegde" fullname="Shraddha Hegde">
-    <organization>Juniper Networks, Inc.</organization>
+    <organization>Juniper Networks Inc.</organization>
     <address>
       <postal>
         <street>Exora Business Park</street>
@@ -35,8 +36,9 @@
       <email>shraddha@juniper.net</email>
     </address>
   </author>
-<author initials="C." surname="Bowers" fullname="Chris Bowers">
-    <organization>Juniper Networks, Inc.</organization>
+  
+  <author initials="C." surname="Bowers" fullname="Chris Bowers">
+    <organization>Juniper Networks Inc.</organization>
     <address>
       <postal>
         <street></street>
@@ -62,6 +64,21 @@
       <email>stephane.litkowski@orange.com</email>
     </address>
   </author>
+  
+  <author initials="X." surname="Xu" fullname="Xiaohu Xu">
+    <organization>Alibaba Inc.</organization>
+    <address>
+      <postal>
+        <street></street>
+        <city>Beijing</city>
+        <region></region>
+        <code></code>
+        <country>China</country>
+      </postal>
+      <email>xiaohu.xxh@alibaba-inc.com</email>
+    </address>
+  </author>
+  
   <date year="2018"/>
   <area>Routing</area>
   <workgroup>Routing area</workgroup>
@@ -110,8 +127,8 @@ a node failure.  </t>
 <t><xref target="Problems_with_SR_TE"/> describes problems with SR-TE 
 paths and the need for a specialized mechanism to provide node protection 
 for SR-TE paths. <xref target="detailed-soln"/> describes the 
-solution applied to paths built using adjacency-sids, node-sids and 
-binding-sids. <xref target="border_node_protection"/> describes the 
+solution applied to paths built using adjacency-sids and node-sids. 
+<xref target="border_node_protection"/> describes the 
 solution applied to egress node protection. </t> 
 
 </section>
@@ -278,17 +295,6 @@ can merge back into the original explicit path at R4.
     
 </section>
 
-<section title='Node-protection of binding-sid explicit paths'>
-  <t> Binding sids (defined in SR architecture <xref 
-target='I-D.ietf-spring-segment-routing'/>) allow the SR-TE path to 
-be built using a hierarchy of sub-paths. The binding sid provides a 
-single label to represent a set of nodes and links. If the node 
-advertising the binding sid goes down, the traffic needs to be 
-protected. The label stack involving the binding-sid contains next label 
-in the stack which corresponds to the end point represented by the 
-binding-sid. The penultimate node of the binding-sid advertiser cannot 
-know the meaning of the next label in the stack. </t> 
-</section>
 </section>
 
 <section anchor='detailed-soln' 
@@ -327,8 +333,6 @@ LFIBs of a particular neighbor.</t>
 		choosing a loop-free path as explained in <xref target = "sec_context_tables_for_node_sids"/></t>
 <t>-	All the Adjacency SIDs advertised by N.
         The NHLFE is constructed as explained in <xref target="sec_context_tables_for_adj_sids"/></t>
-<t>-	All the Binding SIDs advertised by N.
-        The NHLFE is constructed as explained in <xref target="sec_binding_sids_node_protection"/></t>
 </list>
 
 </t>
@@ -473,91 +477,18 @@ and forwarding the packet directly on the link from R3 to R4.
  
  </section>
  
- <section anchor='sec_binding_sids_node_protection' 
-         title='Node protection for binding sids'>
-		 
- <t> <xref target = 'Node_protection_binding_sid'/> shows a 
-sample network where R2 advertises a binding sid 2014 for the path 
-R2->R3->R8->R4. This mechanism is very useful in compressing the 
-label stack depth as a sub-path can be represented using a single label. 
-The explicit path R7->R1->R2->R3->R8->R4->R5 can be represented by 
-a 3 label stack 
-as shown in <xref target = 'Node_protection_binding_sid'/>.
-If the node that advertises the binding-sid 
-goes down, protection mechanisms are needed for the binding sid that the 
-node advertised.
-</t> 		 
-		 
-             <figure anchor="Node_protection_binding_sid" 
-			 title="Building node-protecting backup paths for SR-TE paths involving 
-	  binding SIDs">
-      <artwork>
-                 Binding sid
-                 to reach R4: 
-                 8014    
-				 
-   Node          Node          Node          Node          Node
-   sid:1         sid:2         sid:3         sid:4         sid:5  
-   +----+   10   +----+   10   +----+   10   +----+   10   +----+
-   | R1 |--------| R2 |--------| R3 |--------| R4 |--------| R5 |
-   +----+        +----+        +----+        +----+        +----+
-       \                           \          /   
-        \ 10                        \ 100    / 60
-         \                           \      /   
-          \   +----+                  +----+    
-           +--| R7 |------------------| R8 |           Label stack
-              +----+    30            +----+           for packet fwd 
-             / Node                   Node             from R7 to R1
-            /  sid:7                  sid:8            +------------+
-      +----+                          SRGB:            |  1002 (top)|
-      | R6 |                          3000-4000        +------------+
-      +----+                                           |  8014      |
-      Node                                             +------------+
-      sid:6                                            |  1005      |
-                                                       +------------+
-      </artwork>
-    </figure>	
-
-
- <t> In the example topology, R7 forwards a packet to
-R1 with label stack = [1002,8014,1005].  In the absence of a failure,
-R1 pops the label 1002 (assuming PHP behavior) and forwards the packet
-with label stack = [8014,1005] to R2.  R2 recognizes label 8014 as
-the binding SID it advertised for a path to reach R4 so it 
-pops the label 8014 and uses some forwarding mechanism to have the packet
-reach R4 with label stack = [1005].  </t>
-
-<t> If node R2 fails, it is up to R1 to figure out where traffic would have
-been sent by R2, had it reached R2, by looking deeper into the label stack.
-In this example, R1 recognizes that the second label in the stack 
-corresponds to the binding SID advertised by R2 with R4 as the tail-end
-of the advertised path.  R1 therefore pops label 1002, swaps label
-8014 with 1004 (the node SID to reach R4), and forwards the packet to 
-R7. </t>
-
- <t> Note that the PLR (R1 in this example) needs to receive and understand the 
-binding SID advertisement in order to be able to determine the 
-tail-end of the path advertised by the binding SID.  This would be the
-case with binding SIDs advertised using the IGP.  If other mechanisms are used for 
-advertising binding SIDs, the PLR may not automatically have access to this information.</t>
-
-    </section>
-     <section anchor='border_node_protection' 
+<section anchor='border_node_protection' 
          title='Node protection for edge nodes'>
-         
- <t> The node protection mechanism described in previous sections depends on the assumption 
-that the label below the top label in the label stack are understood in the IGP domain.
+
+<t> The node protection mechanism described in the previous sections depends on the assumption 
+that the label immediately below the top label in the label stack is understood in the IGP domain.
 In the example topology in <xref target ='edge_node_protection'/>, CE-A and CE-B are
 customer edge routers receiving services from provider edge routers. The provider edge routers 
 are exchanging service labels via BGP or some other non-IGP mechanism.
-A packet with label stack = [1005,70099] sent from PE1 to R2 would be forwarded along the path
-PE1->R2->R3->R4->PE5.  Assuming PHP behavior, PE5 receives the packet with the label
-stack = [70099].  PE5 uses the service label 70099 to send the packet to CE-B with the appropriate
-service characteristics.  
-If PE5 fails, R4 needs to act as the PLR.  However, R4 does not understand the meaning of the
-service label 70099.
-</t>
-             <figure anchor="edge_node_protection" title="Node Protection for edge nodes">
+</t> 
+ 
+    <figure anchor="edge_node_protection" title="Node Protection for edge nodes. 
+			 All nodes have SRGB = [1000-2000].">
       <artwork>                                        
                                                        Primary PE:
                                                        context 1.1.1.1
@@ -579,49 +510,68 @@ service label 70099.
             /  sid:7                  sid:8              sid:9      
       +----+                                                  
       | R6 |                                           Protector PE:
-      +----+                                           context 1.1.1.1
+      +----+                                           context 1.1.1.1/32
       Node                                             prefix sid: 201
-      sid:6                                            binding sid:8002
-      
+      sid:6                                            context label: 40001
+ 
                                  Normal                Protection
                                  label stack           label stack
                                  +------------+        +------------+        
                                  |  1201 (top)|        |  1201 (top)|   
                                  +------------+        +------------+           
-                                 |  70099     |        |  8002      |      
+                                 |  70099     |        |  40001     |      
                                  +------------+        +------------+ 
                                                        |  70099     |
                                                        +------------+
       </artwork>
     </figure>
+         
+<t> A packet with label stack = [1005,70099] sent from PE1 to R2 would be forwarded along the path
+PE1->R2->R3->R4->PE5.  Assuming PHP behavior, PE5 receives the packet with the label
+stack = [70099].  PE5 uses the service label 70099 to send the packet to CE-B with the appropriate
+service characteristics.  </t>
 
-
-<t>
-The service mirroring use case is described in
-<xref target='I-D.ietf-spring-segment-routing'/>.
+<t> 
+If PE5 fails, R4 can act as a PLR, redirecting the packet to PE9.
+However, when PE9 receives the packet, it needs to be able to 
+understand the meaning of the meaning of the service label 70099.
+The service mirroring use case described in
+<xref target='I-D.ietf-spring-segment-routing'/> addresses this issue.
 The customer edge (CE) routers are multi-homed 
-to provider edge (PE) routers,  and one of the PE's acts in a primary role and the other in protector role.
-The two PEs advertise a context ip address for each customer site and attaches a prefix-sid to
-the context. The protector PE advertises a binding sid with M bit set which implies mirroring
-capability for the context. Protector PE builds the context table
-for the BGP service labels advertised by the primary PE for the same context. The BGP service 
-is built using a stack of labels with
-context-sid at the bottom of the label stack. 
+to provider edge (PE) routers, and one of the PE's acts in a primary role and the other in protector role.
+The two PEs advertise a context IP address for each customer site and attaches a prefix-sid to
+the context. In IS-IS, the protector PE advertises a Label Binding TLV with the M-bit set 
+which associates a context-label with the context. The Protector PE builds the context table
+for the BGP service labels using the BGP service labels advertised 
+by the primary PE for the same context.  In order for the Protector PE to know 
+when to use the context table, packets need to arrive at the 
+Protector PE with the context-label exposed.  
 </t>
 
 <t> Each node acting as a PLR with respect to failure of the 
 Primary PE installs a backup routing entry that accomplishes two things.
-The routes gets the packet to the Protector PE.  And it positions 
+The route gets the packet to the Protector PE.  And it positions 
 the context-label immediately above the service label in the label stack,
 so that the Protector PE is able to identify the correct context table
 to interpret the service label. </t> 
 
-<t> In the example in <xref target ='edge_node_protection'/>, R4 makes 
-sure that the packet originally destined for PE5 is forwarded on the 
-interface to R8 with label stack = [1201,8002,70099].  This gets the 
-packet to PE9 with label stack = [8002,70099] (assuming PHP behavior).
-PE9 then uses the context label of 8002 to identify the context table
-corresponding to PE5.</t> 
+<t> We now continue with the example topology in <xref target ='edge_node_protection'/>
+using the service mirroring mechansim.
+PE5 is the Primary PE, while PE9 is the Protector PE.
+PE5 and PE9 both advertise the anycast prefix 1.1.1.1/32 with prefix-SID=201.
+In addition, PE9 advertises a context-label of 40001 for the 
+context identified by 1.1.1.1.  PE9 builds a context table for the BGP service
+labels advertised by PE5 associated with 1.1.1.1.   
+In the event of a failure of the link from R4 to PE5,  
+R4 makes sure that the packet originally destined for PE5 is forwarded on the 
+interface to R8 with label stack = [1201,40001,70099].  This gets the 
+packet to PE9 with label stack = [40001,70099] (assuming PHP behavior).
+PE9 then uses the context label of 40001 to determine
+the context table corresponding to 1.1.1.1 on PE5.  After popping the 
+context label, PE9 is able to process the top label [70099] using
+the context table where 70099 has the appropriate meaning.</t> 
+
+
 
     </section>
     </section>
@@ -633,7 +583,8 @@ corresponding to PE5.</t>
 
   </section>
   <section title='Acknowledgments'>
-    <t> </t>
+    <t>  The authors would like to thank Peter Psenak for his review
+	and suggestions. </t>
   </section>
 </middle>
 
