@@ -526,10 +526,12 @@ are exchanging service labels via BGP or some other non-IGP mechanism.
       </artwork>
     </figure>
          
-<t> A packet with label stack = [1005,70099] sent from PE1 to R2 would be forwarded along the path
-PE1->R2->R3->R4->PE5.  Assuming PHP behavior, PE5 receives the packet with the label
-stack = [70099].  PE5 uses the service label 70099 to send the packet to CE-B with the appropriate
-service characteristics.  </t>
+<t> A packet with label stack = [1005,70099] sent from PE1 out the 
+interface to R2 would be forwarded along the path PE1->R2->R3->R4->PE5. 
+Assuming PHP behavior, PE5 receives the packet with the label stack = 
+[70099]. PE5 uses the service label 70099 to send the packet to CE-B 
+with the appropriate service characteristics. </t> 
+
 
 <t> 
 If PE5 fails, R4 can act as a PLR, redirecting the packet to PE9.
