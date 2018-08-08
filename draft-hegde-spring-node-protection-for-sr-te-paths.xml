@@ -78,6 +78,20 @@
       <email>xiaohu.xxh@alibaba-inc.com</email>
     </address>
   </author>
+	
+  <author initials="F." surname="Xu" fullname="Feng Xu">
+    <organization>Tencent</organization>
+    <address>
+      <postal>
+        <street></street>
+        <city></city>
+        <region></region>
+        <code></code>
+        <country>China</country>
+      </postal>
+      <email>oliverxu@tencent.com</email>
+    </address>
+  </author>
   
   <date year="2018"/>
   <area>Routing</area>
@@ -128,8 +142,7 @@ a node failure.  </t>
 paths and the need for a specialized mechanism to provide node protection 
 for SR-TE paths. <xref target="detailed-soln"/> describes the 
 solution applied to paths built using adjacency-sids and node-sids. 
-<xref target="border_node_protection"/> describes the 
-solution applied to egress node protection. </t> 
+ </t> 
 
 </section>
 
@@ -280,7 +293,7 @@ All nodes have SRGB = [1000-2000], except for R8 which has SRGB = [3000-4000].">
  <t>Consider an explicit path from R1->R5 via R1->R2->R3->R8->R4->R5. 
 This path can be built using a combination of node sids and adjacency sids,
 as shown in <xref target='Explicit_path_adj_sid'/>. The diagram shows 
-shows the label stack needed to instantiate this path, as well as 
+the label stack needed to instantiate this path, as well as 
 several adjacency sids advertised by nodes involved in this path.
 When a packet leaving R1 with this label stack  
 reaches R3, the top label is 9044, which will take the 
@@ -307,7 +320,8 @@ that can be specified as a packet arriving at a PLR with
 a particular incoming label stack and leaving the PLR on a particular 
 outgoing interface with a particular outgoing label stack.  
 There may be other methods of arriving at the same externally visible 
-forwarding behavior.  It is not the intent of this document to
+forwarding behavior as described in draft <xref target ='I-D.bashandy-rtgwg-segment-routing-ti-lfa'/>.  
+It is not the intent of this document to
 exclude other methods, as long as the externally visible forwarding
 behavior is the same as produced by this method.</t> 
 	         
@@ -327,7 +341,7 @@ LFIBs of a particular neighbor.</t>
 <t> When a PLR needs to protect an SR-TE path against the failure of a neighbor N, it creates a context table associated with N.
  This context table is populated with the following segment routing forwarding entries:
  <list>
-<t>-	All the Prefix-SIDs of the network which have N as the primary nexthop.
+<t>-	All the Prefix-SIDs of the network.
         The programmed incoming label map uses the SRGB of N to compute the input label value. 
         The NHLFE (Next Hop Label Forwarding Entry) is then constructed by looking into all the nexthops for the prefix-SID and
 		choosing a loop-free path as explained in <xref target = "sec_context_tables_for_node_sids"/></t>
@@ -380,7 +394,7 @@ table that R7 computed for R8 to evaluate the next label on the stack.
    +-------------+---------------------------------------------+
    | 3005        | swap 1005, fwd to R1                        |
    +-------------+---------------------------------------------+
-   | 3008        | swap 1008, fwd to R1                        |
+   | 3008        | drop                        |
    +-------------+---------------------------------------------+       
         </artwork>
       </figure>
@@ -420,7 +434,7 @@ assuming that the failure of the link to R8 implies that R8 has failed.
 </section>
 
 <section anchor='sec_context_tables_for_adj_sids' 
-         title='Node protection for ajacency SIDs'>
+         title='Node protection for adjacency SIDs'>
 		 
  <t> This section gives an example of how to 
 constuct node-protecting backup paths when the SR-TE path uses adjacency SIDs.
@@ -482,96 +496,15 @@ and forwarding the packet directly on the link from R3 to R4.
 
 <t> The node protection mechanism described in the previous sections depends on the assumption 
 that the label immediately below the top label in the label stack is understood in the IGP domain.
-In the example topology in <xref target ='edge_node_protection'/>, CE-A and CE-B are
-customer edge routers receiving services from provider edge routers. The provider edge routers 
-are exchanging service labels via BGP or some other non-IGP mechanism.
+When the provider edge routers 
+exchange service labels via BGP or some other non-IGP mechanism the bottom label is not understood in the IGP domain.
 </t> 
  
-    <figure anchor="edge_node_protection" title="Node Protection for edge nodes. 
-			 All nodes have SRGB = [1000-2000].">
-      <artwork>                                        
-                                                       Primary PE:
-                                                       context 1.1.1.1
-                                                       prefix sid: 201
-                                                       
-                                                         
-    Node         Node          Node          Node        Node
-    sid:1        sid:2         sid:3         sid:4       sid:5  
-    +---+   10   +----+   10   +----+   10   +----+ 10   +---+   +----+
-    |PE1|--------| R2 |--------| R3 |--------| R4 |------|PE5|---|CE-A|
-    +---+        +----+        +----+        +----+      +---+   +----+
-       \                           \          /               \  /     
-        \ 10                        \ 100    / 60              \/       
-         \                           \      /                  /\      
-          \   +----+                  +----+             +---+/  +----+
-           +--| R7 |------------------| R8 |-------------|PE9+---|CE-B|
-              +----+    30            +----+  10         +---+   +----+
-             / Node                   Node               Node       
-            /  sid:7                  sid:8              sid:9      
-      +----+                                                  
-      | R6 |                                           Protector PE:
-      +----+                                           context 1.1.1.1/32
-      Node                                             prefix sid: 201
-      sid:6                                            context label: 40001
  
-                                 Normal                Protection
-                                 label stack           label stack
-                                 +------------+        +------------+        
-                                 |  1201 (top)|        |  1201 (top)|   
-                                 +------------+        +------------+           
-                                 |  70099     |        |  40001     |      
-                                 +------------+        +------------+ 
-                                                       |  70099     |
-                                                       +------------+
-      </artwork>
-    </figure>
-         
-<t> A packet with label stack = [1005,70099] sent from PE1 out the 
-interface to R2 would be forwarded along the path PE1->R2->R3->R4->PE5. 
-Assuming PHP behavior, PE5 receives the packet with the label stack = 
-[70099]. PE5 uses the service label 70099 to send the packet to CE-B 
-with the appropriate service characteristics. </t> 
+<t> The egress node protection mechanisms described in the draft 
+ <xref target ='I-D.ietf-mpls-egress-protection-framework-01'/> 
+is applicable to this usecase and no additional changes will be required for SR based networks</t>
 
-
-<t> 
-If PE5 fails, R4 can act as a PLR, redirecting the packet to PE9.
-However, when PE9 receives the packet, it needs to be able to 
-understand the meaning of the meaning of the service label 70099.
-The service mirroring use case described in
-<xref target='I-D.ietf-spring-segment-routing'/> addresses this issue.
-The customer edge (CE) routers are multi-homed 
-to provider edge (PE) routers, and one of the PE's acts in a primary role and the other in protector role.
-The two PEs advertise a context IP address for each customer site and attaches a prefix-sid to
-the context. In IS-IS, the protector PE advertises a Label Binding TLV with the M-bit set 
-which associates a context-label with the context. The Protector PE builds the context table
-for the BGP service labels using the BGP service labels advertised 
-by the primary PE for the same context.  In order for the Protector PE to know 
-when to use the context table, packets need to arrive at the 
-Protector PE with the context-label exposed.  
-</t>
-
-<t> Each node acting as a PLR with respect to failure of the 
-Primary PE installs a backup routing entry that accomplishes two things.
-The route gets the packet to the Protector PE.  And it positions 
-the context-label immediately above the service label in the label stack,
-so that the Protector PE is able to identify the correct context table
-to interpret the service label. </t> 
-
-<t> We now continue with the example topology in <xref target ='edge_node_protection'/>
-using the service mirroring mechansim.
-PE5 is the Primary PE, while PE9 is the Protector PE.
-PE5 and PE9 both advertise the anycast prefix 1.1.1.1/32 with prefix-SID=201.
-In addition, PE9 advertises a context-label of 40001 for the 
-context identified by 1.1.1.1.  PE9 builds a context table for the BGP service
-labels advertised by PE5 associated with 1.1.1.1.   
-In the event of a failure of the link from R4 to PE5,  
-R4 makes sure that the packet originally destined for PE5 is forwarded on the 
-interface to R8 with label stack = [1201,40001,70099].  This gets the 
-packet to PE9 with label stack = [40001,70099] (assuming PHP behavior).
-PE9 then uses the context label of 40001 to determine
-the context table corresponding to 1.1.1.1 on PE5.  After popping the 
-context label, PE9 is able to process the top label [70099] using
-the context table where 70099 has the appropriate meaning.</t> 
 
 
 
@@ -585,7 +518,7 @@ the context table where 70099 has the appropriate meaning.</t>
 
   </section>
   <section title='Acknowledgments'>
-    <t>  The authors would like to thank Peter Psenak for his review
+    <t>  The authors would like to thank Peter Psenak, Bruno Decreane for their review
 	and suggestions. </t>
   </section>
 </middle>
